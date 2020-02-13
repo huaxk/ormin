@@ -255,8 +255,17 @@ proc cond(n: NimNode; q: var string; params: var Params;
       else:
         if op == "in": q.add " in "
         else: q.add " not in "
-        let b = cond(n[2], q, params, a, qb)
-        checkCompatibleSet a, b, n
+        let t = n[2]
+        if t.kind == nnkBracket:
+          q.add "("
+          for i in 0 .. t.len - 1:
+            let b = cond(t[i], q, params, DbType(kind: dbUnknown), qb)
+            checkCompatible(a, b, n)
+            if i < t.len - 1: q.add ", "
+          q.add ")"
+        else:
+          let b = cond(n[2], q, params, a, qb)
+          checkCompatibleSet a, b, n
       result = DbType(kind: dbBool)
     of "as":
       result = cond(n[1], q, params, expected, qb)
