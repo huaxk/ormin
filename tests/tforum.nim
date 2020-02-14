@@ -119,6 +119,18 @@ suite fmt"test common of {backend}":
       where id notin ?id1 .. ?id2
     check res == persondata.filterIt(it.id < id1 or it.id > id2)
 
+  test "query with predicate: in array":
+    let res = query:
+      select person(id, name, password, email, salt, status)
+      where id in {1, 3, 5}
+    check res == persondata.filterIt(it.id in [1, 3, 5])
+
+  test "query with predicate: not in array":
+    let res = query:
+      select person(id, name, password, email, salt, status)
+      where id notin {1, 3, 5}
+    check res == persondata.filterIt(it.id == 2 or it.id == 4)
+
   test "query with limit":
     let id = 1
     let res = query:
