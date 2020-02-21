@@ -203,7 +203,8 @@ proc cond(n: NimNode; q: var string; params: var Params;
   of nnkStrLit, nnkRStrLit, nnkTripleStrLit:
     result = expected
     if result.kind == dbUnknown:
-      error "cannot infer the type of the literal", n
+      # error "cannot infer the type of the literal", n
+      result.kind = dbVarchar
     if result.kind == dbBlob:
       q.add(escape(n.strVal, "b'", "'"))
     else:
@@ -213,6 +214,11 @@ proc cond(n: NimNode; q: var string; params: var Params;
     if result.kind == dbUnknown:
       result.kind = dbInt
     q.add $n.intVal
+  of nnkNilLit:
+    result = expected
+    if result.kind == dbUnknown:
+      result.kind = dbNull
+    q.add "NULL"    
   of nnkInfix:
     let op = $n[0]
     case op
