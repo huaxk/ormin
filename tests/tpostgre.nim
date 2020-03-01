@@ -4,6 +4,13 @@ import ormin
 
 importModel(DbBackend.postgre, "model_postgre")
 
+static:
+  functions.add([
+    Function(name: "row", arity: -1, typ: dbVarchar),
+    Function(name: "json", arity: 1, typ: dbJson),
+    Function(name: "row_to_json", arity: 1, typ: dbJson),
+  ])
+
 type
   AllType = tuple[typinteger: int,
                   typbool: bool,
@@ -98,7 +105,7 @@ suite "postgre_special":
       produce json
     check resjson == %typedata.mapIt(%*{"typjson": it.typjson})
 
-  test "query datetime":
+  test "query dbTimestamp":
     let res = query:
       select alltype(typtimestamp)
     check res.mapIt($it) == typedata.mapIt($it.typtimestamp)
@@ -106,5 +113,29 @@ suite "postgre_special":
       select alltype(typtimestamp)
       produce json
     check resjson == %typedata.mapIt(%*{"typtimestamp": it.typtimestamp.format(jsonDateTimeFormat)})
+
+  test "func row":  
+    let res = query:
+      select alltype(row(typinteger, typfloat))
+    check res == typedata.mapIt("($1,$2)" % [$it.typinteger, $it.typfloat])
+
+  test "func json":
+    let res = query:
+      select alltype(json(jsonstr))
+    check res == typedata.mapIt(it.jsonstr.parseJson())
+
+  test "func row_to_json":
+    let res = query:
+      select alltype(row_to_json(alltype))
+    check res.mapIt(%*{"typinteger": it["typinteger"],
+                       "typbool": it["typbool"],
+                       "typfloat": it["typfloat"],
+                       "typjson": it["typjson"],
+                       "jsonstr": it["jsonstr"]
+          }) == typedata.mapIt(%*{"typinteger": it.typinteger,
+                                  "typbool": it.typbool,
+                                  "typfloat": it.typfloat,
+                                  "typjson": it.typjson,
+                                  "jsonstr": it.jsonstr})
 
   db.close()
