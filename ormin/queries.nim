@@ -167,6 +167,13 @@ proc lookupColumnInEnv(n: NimNode; q: var string; params: var Params;
       q.add '.'
   escIdent(q, name)
 
+proc lookupAliasInEnv(n: NimNode; qb: QueryBuilder): string =
+  let tableIndex = tableNames.find($n)
+  if qb.env[0][0] == tableIndex:
+    result = qb.env[0][1]
+  else:
+    result = ""
+
 proc cond(n: NimNode; q: var string; params: var Params;
           expected: DbType, qb: QueryBuilder): DbType =
   case n.kind
@@ -324,6 +331,11 @@ proc cond(n: NimNode; q: var string; params: var Params;
           q.add op
           q.add "("
           for i in 1..<n.len:
+            let alias = lookupAliasInEnv(n[i], qb)
+            if alias.len > 0:
+              q.add alias
+              if i < n.len-1: q.add ", "
+              continue
             result = cond(n[i], q, params, DbType(kind: dbUnknown), qb)
             if i < n.len-1: q.add ", "
           if f.typ != dbUnknown: result.kind = f.typ
