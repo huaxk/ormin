@@ -5,5 +5,5 @@ create table if not exists alltype(
   typfloat real not null,
   typjson json not null,
   jsonstr varchar not null,
-  typtimestamp timestamp not null default CURRENT_TIMESTAMP
+  typtimestamp timestamp not null
 );

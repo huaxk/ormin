@@ -5,7 +5,7 @@ when not declared(tableNames):
 when not declared(attributes):
   {.error: "The query DSL requires a attributes const.".}
 
-import macros, strutils, db_common, tables
+import macros, strutils, db_common, tables, times
 from os import parentDir, `/`
 
 # SQL dialect specific things:

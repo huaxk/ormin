@@ -1,4 +1,4 @@
-import unittest, json, postgres, strformat, strutils, sequtils, macros
+import unittest, json, postgres, strformat, strutils, sequtils, macros, times
 from db_postgres import exec, getValue
 import ormin
 
@@ -10,6 +10,7 @@ type
                   typfloat: float,
                   typjson: JsonNode,
                   jsonstr: string,
+                  typtimestamp: DateTime
                 ]
 
 var typedata: seq[AllType]
@@ -20,7 +21,8 @@ for i in 1..rowcount:
                 typbool: i mod 2 == 0,
                 typfloat: 0.5 + i.float,
                 typjson: %*{"name": &"bob{i}", "age": 29 + i},
-                jsonstr: $(%*{"type": "Point", "coordinates": [i, i.float]})
+                jsonstr: $(%*{"type": "Point", "coordinates": [i, i.float]}),
+                typtimestamp: initDateTime(30, mMar, 2019, i, i, i),
               ))
 
 suite "postgre_special":
@@ -35,8 +37,8 @@ suite "postgre_special":
                        typbool = ?t.typbool,
                        typfloat = ?t.typfloat,
                        typjson = ?(t.typjson),
-                       jsonstr = ?(t.jsonstr))
-                       
+                       jsonstr = ?(t.jsonstr),
+                       typtimestamp = ?(t.typtimestamp))
     check db.getValue(sql"select count(*) from alltype") == $rowcount
 
   test "query_dbSerial":
@@ -95,5 +97,14 @@ suite "postgre_special":
       select alltype(typjson)
       produce json
     check resjson == %typedata.mapIt(%*{"typjson": it.typjson})
+
+  test "query datetime":
+    let res = query:
+      select alltype(typtimestamp)
+    check res.mapIt($it) == typedata.mapIt($it.typtimestamp)
+    let resjson = query:
+      select alltype(typtimestamp)
+      produce json
+    check resjson == %typedata.mapIt(%*{"typtimestamp": it.typtimestamp.format(jsonDateTimeFormat)})
 
   db.close()

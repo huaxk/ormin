@@ -1,5 +1,5 @@
 
-import strutils, postgres, json, tables
+import strutils, postgres, json, tables, times
 
 import db_common
 export db_common
@@ -11,12 +11,15 @@ type
 var dbtypetables* {.compileTime.} = {
   dbVarchar: "string",
   dbInt: "int",
-  dbTimestamp: "string",
+  dbTimestamp: "DateTime",
   dbFloat: "float",
   dbSerial: "int",
   dbBool: "bool",
   dbJson: "JsonNode",
 }.toTable
+
+var dbDateTimeFormat* = "yyyy-MM-dd hh:mm:ss"
+var jsonDateTimeFormat* = "yyyy-MM-dd hh:mm:ss"
 
 proc dbError*(db: DbConn) {.noreturn.} =
   ## raises a DbError exception.
@@ -118,6 +121,13 @@ template bindResult*(db: DbConn; s: PStmt; idx: int; dest: var JsonNode;
   let src = pqgetvalue(queryResult, queryI, idx.cint)
   dest = parseJson($src)
 
+template bindResult*(db: DbConn; s: PStmt; idx: int; dest: var DateTime;
+                     t: typedesc; name: string) =
+  let
+    src = $pqgetvalue(queryResult, queryI, idx.cint)
+    x = src.split('.')  
+  dest = parse(x[0], dbDateTimeFormat)
+
 template createJObject*(): untyped = newJObject()
 template createJArray*(): untyped = newJArray()
 
@@ -155,6 +165,14 @@ template bindToJson*(db: DbConn; s: PStmt; idx: int; obj: JsonNode;
                          t: typedesc[JsonNode]; name: string) =
   let src = pqgetvalue(queryResult, queryI, idx.cint)
   obj[name] = parseJson($src)
+
+template bindToJson*(db: DbConn; s: PStmt; idx: int; obj: JsonNode;
+                         t: typedesc[DateTime]; name: string) =
+  let
+    src = $pqgetvalue(queryResult, queryI, idx.cint)
+    x = src.split('.')
+    dt = parse(x[0], dbDateTimeFormat)
+  obj[name] = newJString(format(dt, jsonDateTimeFormat))
   
 template startQuery*(db: DbConn; s: PStmt) =
   when declared(pparams):
