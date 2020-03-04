@@ -30,19 +30,20 @@ proc prepareStmt*(db: DbConn; q: string): PStmt =
 template startBindings*(s: PStmt; n: int) =
   if clear_bindings(s) != SQLITE_OK: dbError(db)
 
-template bindParam*(db: DbConn; s: PStmt; idx: int; x, t: untyped) =
-  #when not (x is t):
-  #  {.error: "type mismatch for query argument at position " & $idx.}
-  when t is int or t is int64 or t is bool:
-    if bind_int64(s, idx.cint, x.int64) != SQLITE_OK: dbError(db)
-  elif t is string:
-    if bind_blob(s, idx.cint, cstring(x), x.len.cint, SQLITE_STATIC) != SQLITE_OK:
-      dbError(db)
-  elif t is float64:
-    if bind_double(s, idx.cint, x) != SQLITE_OK:
-      dbError(db)
-  else:
-    {.error: "type mismatch for query argument at position " & $idx.}
+template bindParam*(db: DbConn; s: PStmt; idx: int; x: untyped, t: typedesc) =
+  {.error: "type mismatch for query argument at position " & $idx.}
+
+template bindParam*(db: DbConn; s: PStmt; idx: int; x: untyped, t: typedesc[int|int64|bool]) =
+  if bind_int64(s, idx.cint, x.int64) != SQLITE_OK:
+    dbError(db)
+
+template bindParam*(db: DbConn; s: PStmt; idx: int; x: untyped, t: typedesc[string]) =
+  if bind_blob(s, idx.cint, cstring(x), x.len.cint, SQLITE_STATIC) != SQLITE_OK:
+    dbError(db)
+
+template bindParam*(db: DbConn; s: PStmt; idx: int; x: untyped, t: typedesc[float64]) =
+  if bind_double(s, idx.cint, x) != SQLITE_OK:
+    dbError(db)
 
 template bindParamJson*(db: DbConn; s: PStmt; idx: int; xx: JsonNode;
                         t: typedesc) =
@@ -112,20 +113,31 @@ template bindResultJson*(db: DbConn; s: PStmt; idx: int; obj: JsonNode;
   if column_type(s, idx.cint) == SQLITE_NULL:
     x[name] = newJNull()
   else:
-    when t is string:
-      let dest = newJString("")
-      let srcLen = column_bytes(s, idx.cint)
-      let src = column_text(s, idx.cint)
-      fillString(dest.str, src, srcLen)
-      x[name] = dest
-    elif (t is int) or (t is int64):
-      x[name] = newJInt(column_int64(s, idx.cint))
-    elif t is float64:
-      x[name] = newJFloat(column_double(s, idx.cint))
-    elif t is bool:
-      x[name] = newJBool(column_int64(s, idx.cint) != 0)
-    else:
-      {.error: "invalid type for JSON object".}
+    bindToJson(db, s, idx, x, t, name)
+
+template bindToJson*(db: DbConn; s: PStmt; idx: int; obj: JsonNode;
+                     t: typedesc; name: string) =
+  {.error: "invalid type for JSON object".}
+
+template bindToJson*(db: DbConn; s: PStmt; idx: int; obj: JsonNode;
+                     t: typedesc[string]; name: string) =
+  let dest = newJString("")
+  let srcLen = column_bytes(s, idx.cint)
+  let src = column_text(s, idx.cint)
+  fillString(dest.str, src, srcLen)
+  obj[name] = dest
+
+template bindToJson*(db: DbConn; s: PStmt; idx: int; obj: JsonNode;
+                     t: typedesc[int|int64]; name: string) =
+  obj[name] = newJInt(column_int64(s, idx.cint))
+
+template bindToJson*(db: DbConn; s: PStmt; idx: int; obj: JsonNode;
+                     t: typedesc[float64]; name: string) =
+  obj[name] = newJFloat(column_double(s, idx.cint))
+
+template bindToJson*(db: DbConn; s: PStmt; idx: int; obj: JsonNode;
+                     t: typedesc[bool]; name: string) =
+  x[name] = newJBool(column_int64(s, idx.cint) != 0)
 
 template startQuery*(db: DbConn; s: PStmt) = discard "nothing to do"
 
