@@ -1,23 +1,40 @@
 
-import ormin, json
+import ormin, json, net
+from ormin/ormin_sqlite import DbConn
+from sqlite3 import PStmt, column_bytes, column_text, bind_blob,
+                    SQLITE_STATIC, SQLITE_OK
+                    
+template bindResult*(db: DbConn; s: PStmt; idx: int; dest: var IpAddress;
+                     t: typedesc; name: string) =
+  let src = column_text(s, idx.cint)
+  dest = parseIpAddress($src)
+
+template bindToJson*(db: DbConn; s: PStmt; idx: int; obj: JsonNode;
+                     t: typedesc[IpAddress]; name: string) =
+  obj[name] = newJString($column_text(s, idx.cint))
+
+template bindParam*(db: DbConn; s: PStmt; idx: int; x: untyped, t: typedesc[IpAddress]) =
+  let ipstr = $x
+  if bind_blob(s, idx.cint, cstring(ipstr), ipstr.len.cint, SQLITE_STATIC) != SQLITE_OK:
+    dbError(db)
 
 importModel(DbBackend.sqlite, "forum_model")
 
 static:
-  dbTypeMap.add(dbInet, "string")
+  dbTypeMap.add(dbInet, "IpAddress")
   
-var db {.global.} = open("stuff", "", "", "")
+var db {.global.} = open("stuff.db", "", "", "")
 
 #var db: DbConn
 #proc getPrepStmt(idx: int): PStmt
 
 #var gPrepStmts: array[N, cstring]
 
-type inet = string
+# type inet = string
 
 const
   id = 90
-  ip = "moo"
+  ip = parseIpAddress("192.168.1.1")
   answer = "dunno"
   pw = "mypw"
   email = "some@body.com"
@@ -26,102 +43,107 @@ const
   limit = 10
   offset = 5
 
-let threads = query:
-  select thread(id, name, views, modified)
-  where id in (select post(thread) where author in
-      (select person(id) where status notin ("Spammer") or id == ?id))
-  orderby desc(modified)
-  limit ?limit
-  offset ?offset
+# let threads = query:
+#   select thread(id, name, views, modified)
+#   where id in (select post(thread) where author in
+#       (select person(id) where status notin ("Spammer") or id == ?id))
+#   orderby desc(modified)
+#   limit ?limit
+#   offset ?offset
 
-let thisThread = tryQuery:
-  select thread(id)
-  where id == ?id
+# let thisThread = tryQuery:
+#   select thread(id)
+#   where id == ?id
 
 createIter allThreadIds:
   select thread(id)
   where id == ?id
 
-query:
-  delete antibot
-  where ip == ?ip
+# query:
+#   delete antibot
+#   where ip == ?ip
 
-query:
-  insert antibot(?ip, ?answer)
+# query:
+#   insert antibot(?ip, ?answer)
 
-let something = query:
-  select antibot(answer & answer, (if ip == "hi": 0 else: 1))
-  where ip == ?ip and answer =~ "%things%"
-  orderby desc(ip)
-  limit 1
+# let res = query:
+#   select antibot(ip, answer)
+#   # produce json
+# echo res
 
-let myNewPersonId: int = query:
-  insert person(?name, password = ?pw, ?email, ?salt, status = !!"'EmailUnconfirmed'",
-         lastOnline = !!"DATETIME('now')")
-  returning id
+# let something = query:
+#   select antibot(answer & answer, (if ip == "hi": 0 else: 1))
+#   where ip == ?ip and answer =~ "%things%"
+#   orderby desc(ip)
+#   limit 1
 
-query:
-  delete session
-  where ip == ?ip and password == ?pw
+# let myNewPersonId: int = query:
+#   insert person(?name, password = ?pw, ?email, ?salt, status = !!"'EmailUnconfirmed'",
+#          lastOnline = !!"DATETIME('now')")
+#   returning id
 
-query:
-  update session(lastModified = !!"DATETIME('now')")
-  where ip == ?ip and password == ?pw
+# query:
+#   delete session
+#   where ip == ?ip and password == ?pw
 
-let myj = %*{"pw": "stuff here"}
+# query:
+#   update session(lastModified = !!"DATETIME('now')")
+#   where ip == ?ip and password == ?pw
 
-let userId1 = query:
-  select session(userId)
-  where ip == ?ip and password == %myj["pw"]
+# let myj = %*{"pw": "stuff here"}
 
-let (name9, email9, status, ban) = query:
-  select person(name, email, status, ban)
-  where id == ?id
-  limit 1
+# let userId1 = query:
+#   select session(userId)
+#   where ip == ?ip and password == %myj["pw"]
 
-let (idg, nameg, pwg, emailg, creationg, saltg, statusg, lastOnlineg, bang) = query:
-  select person(_)
-  where id == ?id
-  limit 1
+# let (name9, email9, status, ban) = query:
+#   select person(name, email, status, ban)
+#   where id == ?id
+#   limit 1
 
-query:
-  update person(lastOnline = !!"DATETIME('now')")
-  where id == ?id
+# let (idg, nameg, pwg, emailg, creationg, saltg, statusg, lastOnlineg, bang) = query:
+#   select person(_)
+#   where id == ?id
+#   limit 1
 
-query:
-  update thread(views = views + 1, modified = !!"DATETIME('now')")
-  where id == ?id
+# query:
+#   update person(lastOnline = !!"DATETIME('now')")
+#   where id == ?id
 
-query:
-  delete thread
-  where id notin (select post(thread))
+# query:
+#   update thread(views = views + 1, modified = !!"DATETIME('now')")
+#   where id == ?id
 
-let (author, creation) = query:
-  select post(author)
-  join person(creation)
-  limit 1
+# query:
+#   delete thread
+#   where id notin (select post(thread))
 
-let (authorB, creationB) = query:
-  select post(author)
-  join person(creation) on author == id
-  limit 1
+# let (author, creation) = query:
+#   select post(author)
+#   join person(creation)
+#   limit 1
 
-let allPosts = query:
-  select post(count(_) as cnt)
-  where cnt > 0
-  produce json
-  limit 1
+# let (authorB, creationB) = query:
+#   select post(author)
+#   join person(creation) on author == id
+#   limit 1
 
-createProc getAllThreadIds:
-  select thread(id)
-  where id == ?id
-  produce json
+# let allPosts = query:
+#   select post(count(_) as cnt)
+#   where cnt > 0
+#   produce json
+#   limit 1
 
-let totalThreads = query:
-  select thread(count(_))
-  where id in (select post(thread) where author == ?id and id in (
-    select post(min(id)) groupby thread))
-  limit 1
+# # createProc getAllThreadIds:
+# #   select thread(id)
+# #   where id == ?id
+# #   produce json
+
+# let totalThreads = query:
+#   select thread(count(_))
+#   where id in (select post(thread) where author == ?id and id in (
+#     select post(min(id)) groupby thread))
+#   limit 1
 
 #query:
 #  update thread(modified = (select post(creation) where post.thread == ?thread
