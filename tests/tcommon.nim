@@ -262,6 +262,12 @@ suite "string":
       where typstring == ?ss[0]
     check res[0] == ss[0]
 
+  test "like":
+    let res = query:
+      select tb_string(typstring)
+      where typstring =~ "%o%"
+    check res == ss.filterIt(it.contains("o"))
+
   test "json":
     let res = query:
       select tb_string(typstring)

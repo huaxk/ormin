@@ -20,3 +20,7 @@ create table if not exists tb_timestamp(
   dtn timestamptz not null,
   dtz timestamptz not null
 );
+
+create table if not exists tb_blob(
+  typblob bytea not null
+);

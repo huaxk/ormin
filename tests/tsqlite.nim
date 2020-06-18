@@ -6,7 +6,7 @@ import ./utils
 importModel(DbBackend.sqlite, "model_sqlite")
 
 let
-  db {.global.} = open(":memory:", "", "", "")
+  db {.global.} = open("test.db", "", "", "")
   testDir = currentSourcePath.parentDir()
   sqlFile = testDir / "model_sqlite.sql"
 
@@ -94,3 +94,75 @@ suite "timestamp":
       where dt1 == %dtjson["dt1"]
       produce json
     check res == %*[dtjson]
+
+
+type
+  Student = object
+    name: string
+    age: int
+
+let
+  name = "bob"
+  age = 20
+  student = Student(name: name, age: age)
+  bytes = [21'u8, 25'u8, 26'u8, 27'u8]
+  ints = [21, 25, 26, 27]
+  students = [
+    Student(name: "bob", age: 20),
+    Student(name: "jack", age: 30),
+    Student(name: "tom", age: 34)
+  ]
+
+proc toSeq*[T](b: Blob): seq[T] =
+  let (val, len) = b
+  result = newSeq[T](len div sizeof(T))
+  copyMem(result[0].addr, val, len)
+
+proc toObject*[T](b: Blob): T =
+  let (val, _) = b
+  result = cast[ptr T](val)[]
+
+suite "blob":
+  setup:
+    db.dropTable(sqlFile, "tb_blob")
+    db.createTable(sqlFile, "tb_blob")
+  
+  test "bytes":
+    let b = (bytes, bytes.sizeof)
+    query:
+      insert tb_blob(typblob = ?b)
+    let res = query:
+      select tb_blob(typblob)
+      limit 1
+    let r = toSeq[byte](res)
+    check r == bytes
+
+  test "ints":
+    let b = (ints, ints.sizeof)
+    query:
+      insert tb_blob(typblob = ?b)
+    let res = query:
+      select tb_blob(typblob)
+      limit 1
+    let r = toSeq[int](res)
+    check r == ints
+
+  test "object":
+    let b = (student, student.sizeof)
+    query:
+       insert tb_blob(typblob = ?b)
+    let res = query:
+      select tb_blob(typblob)
+      limit 1
+    let r = toObject[Student](res)
+    check r == student
+
+  test "objects":
+    let b = (students, students.sizeof)
+    query:
+      insert tb_blob(typblob = ?b)
+    let res = query:
+      select tb_blob(typblob)
+      limit 1
+    let r = toSeq[Student](res)
+    check r == students

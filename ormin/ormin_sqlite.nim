@@ -11,6 +11,8 @@ type
   varchar* = string
   integer* = int
   timestamp* = DateTime
+  Blob* = tuple[val: pointer, len: int]
+  blob* = Blob
 
 var jsonTimeFormat* = "yyyy-MM-dd HH:mm:ss"
 
@@ -47,6 +49,11 @@ template bindParam*(db: DbConn; s: PStmt; idx: int; x, t: untyped) =
 
     if bind_text(s, idx.cint, cstring(xx), xx.len.cint, SQLITE_STATIC) != SQLITE_OK:
       dbError(db)    
+  elif t is Blob:
+    let (val, len) = x
+    doAssert len <= x.sizeof
+    if bind_blob(s, idx.cint, val.unsafeAddr, len.cint, SQLITE_STATIC) != SQLITE_OK:
+      dbError(db)
   else:
     {.error: "type mismatch for query argument at position " & $idx.}
 
@@ -141,6 +148,15 @@ template bindResult*(db: DbConn; s: PStmt; idx: int; dest: DateTime;
     dest = parse(src, "yyyy-MM-dd HH:mm:ss", utc())
   else:
     dest = parse(src, "yyyy-MM-dd HH:mm:ss\'.\'fff", utc())
+
+template bindResult*(db: DbConn; s: PStmt; idx: int; dest: tuple[val: pointer, len: int];
+                     t: typedesc; name: string) =
+  let
+    len = column_bytes(s, idx.cint)
+    val = column_blob(s, idx.cint)
+  dest = (val: val, len: len.int)
+  # dest = column_blob(s, idx.cint)
+
 
 template createJObject*(): untyped = newJObject()
 template createJArray*(): untyped = newJArray()

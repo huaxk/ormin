@@ -121,3 +121,82 @@ suite "timestamp":
       where dt == %dtjson1["dt"]
       produce json
     check res[0] == dtjson1
+
+
+type
+  Student = object
+    name: string
+    age: int
+
+let
+  name = "bob"
+  age = 20
+  student = Student(name: name, age: age)
+  bytes = [21'u8, 25'u8, 26'u8, 27'u8]
+  ints = [21, 25, 26, 27]
+  students = [
+    Student(name: "bob", age: 20),
+    Student(name: "jack", age: 30),
+    Student(name: "tom", age: 34)
+  ]
+
+proc toSeq*[T](b: Blob): seq[T] =
+  let
+    (val, len) = b
+    hexStr = ($val)[2..<len]
+    hexLen = len-2
+    seqLen = hexLen div (2 * sizeof(T))
+    binStr = parseHexStr(hexStr)
+  echo val
+  echo len
+  echo toHex(binStr)
+  result = newSeq[T](seqLen)
+  copyMem(result[0].addr, binStr.cstring, hexLen)
+
+proc toObject*[T](b: Blob): T =
+  let
+    (val, len) = b
+    hexStr = ($val)[2..<len]
+    hexLen = len - 2
+    binStr = parseHexStr(hexStr)
+    binLen = hexLen div 2
+  echo hexStr.len, hexLen
+  echo binStr.len, binLen
+  # result = cast[ptr T](binStr.cstring)[]
+  copyMem(result.addr, (binStr.cstring).unsafeAddr, binLen)
+
+suite "blob":
+  db.dropTable(sqlFile, "tb_blob")
+  db.createTable(sqlFile, "tb_blob")
+
+  test "bytes":
+    let b = (bytes, bytes.sizeof)
+    query:
+      insert tb_blob(typblob = ?b)
+    let res = query:
+      select tb_blob(typblob)
+      limit 1
+    let r = toSeq[byte](res)
+    check r == bytes
+
+  test "ints":
+    let b = (ints, ints.sizeof)
+    query:
+      insert tb_blob(typblob = ?b)
+    let res = query:
+      select tb_blob(typblob)
+      limit 1
+    echo toSeq[int](res)
+
+  test "object":
+    let b = (student, student.sizeof)
+    query:
+       insert tb_blob(typblob = ?b)
+    let res = query:
+      select tb_blob(typblob)
+      limit 1
+    echo b
+    echo res
+    let r = toObject[Student](res)
+    echo r.name
+    # check r == student 

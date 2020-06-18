@@ -19,3 +19,7 @@ create table if not exists tb_timestamp(
   dt1 timestamp not null,
   dt2 timestamp not null
 );
+
+create table if not exists tb_blob(
+  typblob blob not null
+);

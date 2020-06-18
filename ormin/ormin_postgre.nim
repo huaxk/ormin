@@ -12,6 +12,8 @@ type
   integer* = int
   timestamp* = Datetime
   serial* = int
+  Blob* = tuple[val: cstring, len: int]
+  blob* = Blob
 
 var jsonTimeFormat* = "yyyy-MM-dd HH:mm:ss"
 
@@ -42,13 +44,20 @@ template startBindings*(s: PStmt; n: int) {.dirty.} =
   # on the conservative stack marking:
   var pparams: array[n, string]
   var parr: array[n, cstring]
+  var plenarr: array[n, int32]
+  var pfmtarr: array[n, int32]
 
 template bindParam*(db: DbConn; s: PStmt; idx: int; x: untyped; t: untyped) =
-  when not (x is t):
-    {.error: "type mismatch for query argument at position " & $idx.}
+  # when not (x is t):
+  #   {.error: "type mismatch for query argument at position " & $idx.}
   when t is DateTime:
     let xx = x.format("yyyy-MM-dd HH:mm:ss\'.\'ffffffzzzz")
     pparams[idx-1] = $xx
+  when t is Blob:
+    let (val, len) = x
+    pparams[idx-1] = $cast[cstring](val.unsafeAddr)
+    plenarr[idx-1] = len.int32
+    pfmtarr[idx-1] = 1
   else:
     pparams[idx-1] = $x
 
@@ -153,6 +162,13 @@ template bindResult*(db: DbConn; s: PStmt; idx: int; dest: var DateTime;
       let dtstr = src & '0'.repeat(7-src.len+i)
       dest = parse(dtstr, "yyyy-MM-dd HH:mm:ss\'.\'ffffff")
 
+template bindResult*(db: DbConn; s: PStmt; idx: int; dest: Blob;
+                     t: typedesc; name: string) =
+  let
+    val = pqgetvalue(queryResult, queryI, idx.cint)
+    len = pqgetlength(queryResult, queryI, idx.cint)
+  dest = (val, len.int)
+
 template createJObject*(): untyped = newJObject()
 template createJArray*(): untyped = newJArray()
 
@@ -195,7 +211,7 @@ template bindToJson*(db: DbConn; s: PStmt; idx: int; obj: JsonNode;
 template startQuery*(db: DbConn; s: PStmt) =
   when declared(pparams):
     var queryResult {.inject.} = pqexecPrepared(db, s, int32(parr.len),
-            cast[cstringArray](addr parr), nil, nil, 0)
+            cast[cstringArray](addr parr), plenarr[0].addr, pfmtarr[0].addr, 0)
   else:
     var queryResult {.inject.} = pqexecPrepared(db, s, int32(0),
             nil, nil, nil, 0)
